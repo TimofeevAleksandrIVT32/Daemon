@@ -1,1 +1,2 @@
-/tmp/d.socket
+/tmp/s
+file.txt
