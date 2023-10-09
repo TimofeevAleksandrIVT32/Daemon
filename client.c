@@ -11,38 +11,15 @@ int client_socket(char *file_name) {
     if (read_config(CONFIG_NAME, soc)) {
         return 1;
     }
-    int data_socket = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+    int data_socket = settings_client_socket(soc);
     if (data_socket == -1) {
-        perror("Socket creation error");
         return 1;
     }
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, soc, sizeof(addr.sun_path) - 1);
-    if (connect(data_socket, (const struct sockaddr *) &addr, sizeof(addr)) == -1) {
-        printf("The server is down\n");
-        close(data_socket);
+    if (write_data_soc(data_socket, file_name)) {
         return 1;
     }
-    if (write(data_socket, file_name, strlen(file_name) + 1) == -1) {
-        perror("Write error");
-        close(data_socket);
+    if (read_data_soc(data_socket)) {
         return 1;
-    }
-    char buffer[STR_SIZE];
-    if (read(data_socket, buffer, sizeof(buffer)) == -1) {
-        perror("Read error");
-        close(data_socket);
-        return 1;
-    }
-    buffer[sizeof(buffer) - 1] = 0;
-    if (!strcmp(buffer,"END")) {
-        printf("Server shut down successfully\n");
-    }else if (!strcmp(buffer,"-1")) {
-        printf("File does not exist\n");
-    } else {
-        printf("File size = %s\n", buffer);
     }
     close(data_socket);
     return 0;
@@ -60,6 +37,61 @@ int read_config(char *file_name, char *soc) {
         fclose(file);
         return 1;
     }
+    soc[strcspn(soc, "\n")] = 0;
     fclose(file);
     return 0;
+}
+
+//функция создания и настройки клиентского сокета
+int settings_client_socket(char *soc) {
+    int data_socket = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+    if (data_socket == -1) {
+        perror("Socket creation error");
+        return data_socket;
+    }
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, soc, sizeof(addr.sun_path) - 1);
+    if (connect(data_socket, (const struct sockaddr *) &addr, sizeof(addr)) == -1) {
+        printf("The server is down\n");
+        close(data_socket);
+        return -1;
+    }
+    return data_socket;
+}
+
+//функция записи данных в сокет
+int write_data_soc(int data_socket, char *signal) {
+    if (write(data_socket, signal, strlen(signal) + 1) == -1) {
+        perror("Write error");
+        close(data_socket);
+        return 1;
+    }
+    return 0;
+
+}
+
+//функция чтения данных из сокета
+int read_data_soc(int data_socket) {
+    char buffer[STR_SIZE];
+    if (read(data_socket, buffer, sizeof(buffer)) == -1) {
+        perror("Read error");
+        close(data_socket);
+        return 1;
+    }
+    buffer[sizeof(buffer) - 1] = 0;
+    print_result(buffer);
+    return 0;
+}
+
+//функция вывода результата
+void print_result(char *buffer) {
+   if (!strcmp(buffer,"end")) {
+        printf("Server shut down successfully\n");
+    } else if (!strcmp(buffer,"-1")) {
+        printf("File does not exist\n");
+    } else {
+        printf("File size = %s\n", buffer);
+    } 
 }
